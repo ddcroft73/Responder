@@ -1,0 +1,6 @@
+{
+    "imap_credentials": ["sameAccountAsTizzleEmail@gmail.com","apppassword"],
+    "imap_server": "imap.gmail.com",
+    "smtp_port": 465,
+    "contact": "Contact to send alerts and status reports"
+}
