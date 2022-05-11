@@ -32,10 +32,6 @@ class EmailHandler():
         Gets the contents of the inbox and searches for instructions
         If found then the instruction is passed on and the email is deleted.
         '''        
-        # I need to search these emails better. Maybe grab the entire email, and delete it
-        # then pass it to another function to pull out the data, a function for each instruction?
-        
-        # just return the message from this function
         raw_msg: str|None = None
         cnt: int = 0
         self.imap.select("INBOX")
@@ -51,17 +47,16 @@ class EmailHandler():
                         raw_msg = email.message_from_bytes(response[1])
                         raw_msg = str(raw_msg).lower()    
                         cnt+=1
-                        self.log.log_task(f"Email found {cnt}.") 
-                #self.imap.store(mail, "+FLAGS", "\\Deleted")   
+                        self.log.log_task(f"Email found: {cnt}") 
+                self.imap.store(mail, "+FLAGS", "\\Deleted")   
 
-            #self.imap.expunge()  
+            self.imap.expunge()  
             self.log.log_task(f"Email deleted.")  
 
         except:
-           # no emails to parse  
+           # no emails keep shlooking 
            pass 
-
-
+        
         return raw_msg 
  
     def logout(self):

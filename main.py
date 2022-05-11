@@ -1,26 +1,8 @@
 #responder.py
 
 # A simple sister application to "Tizzle" that will disable a message Task according to instructions
-# found in the Email inbox associated with the account.
-#
-# Purpose:
-#    When Tizzles are sent on a recurring scedule the user should be able to stop anymore incoming texts
-#    at will if they do not want\need to wait out the cycle. USer will simply reply to the text message
-#    with : "Stop <MessageID>". THe message ID is included in the text.
-#
-# Loop:
-#   Login to email  
-#   Check for a specific email
-#   Delete email
-#   If Found:
-#      define task
-#         handle instruction
-#   sleep 5 mins  
-#   
-# Program attempts to catch all errors and restart so that app will run ubtil it is manually shut down
-#
-# My first attempt at using 100% OOD. Im sure its not the best it can be. and it likely doesnt even need 
-# OOD But SInce I PLan on rewritting Tizzle because it needs it, I am practicing.
+# found in the Email inbox associated with the account. Will also give status reports to the 'Contact"
+# noted in the settings file
 
 from time import sleep
 from sys import exit

@@ -14,9 +14,6 @@ class Responder():
     ''' ties in all the classes and does the work '''
 
     settings: dict = {}
-
-    #Variables to stroe info for status report
-    # store these values when they change. maybe nmake a method to update?
     commands_this_run:   list[str] = []
 
     def __init__(self, settings_location: str,  pid: int):
@@ -31,7 +28,6 @@ class Responder():
         self.start_time: str = self.log.get_time()
 
 
-#=======================
 
     def disable_task(self, task_name_: str) -> None:
         '''
@@ -47,9 +43,7 @@ class Responder():
             self.__change_message_status(task_name_, 'Disabled.')
         else:
             self.log.log_error_report(f'Attempting to disable: {task_name_}.')
-
-#=======================
-
+#-------------------------------------------------------------------------------------------------------------------------
     def parse_email(self, raw_email_: str) -> dict[str, str]:
         '''
         searches an email message for a dict of regex targets, returns any found
@@ -83,23 +77,12 @@ class Responder():
                 dict_results[target] = None
 
         return dict_results
-
-#=======================
-
+#-------------------------------------------------------------------------------------------------------------------------
     def handle_instructions(self, data_: dict[str,str], msg_: str=None) -> None:
         '''
         handles any request issued from a client.
-        '''        
-        msg: str
-        arg: str
-        sub_command: str = ""
-        #Take in the dict and decide wtf and htf to deal with it
-        # should i loop the dict"
-        #Can be more thatn one instructin at a time, so they should all be handled before shutdown
-        
-        self.log.log_task(f"Received {self.__num_commands(data_)} commands "
-                         f"from '{self.__get_user(data_['phone'])[NAME]}'")
-
+        '''                 
+        self.log.log_task(f"Received {self.__num_commands(data_)} commands from '{self.__get_user(data_['phone'])[NAME]}'")
         user_commands: tuple[str, str] = self.__get_commands(data_)   
         
         for command in user_commands:
@@ -107,13 +90,14 @@ class Responder():
             self.__exec_command(command[0], command[1], command[2])
 
         return        
-
-#=======================
-
+#-------------------------------------------------------------------------------------------------------------------------
     def __exec_command(self, command:str, payload: str, user_phone: str) -> None:        
         '''
         executes a users command.
-        '''
+        ''' 
+        msg: str
+        arg: str
+        sub_command: str = "" 
         self.log.log_task(f"Command: {command.upper()} issued.")
         match command:
             case 'status':
@@ -147,11 +131,10 @@ class Responder():
         return_code: int = run(tizz_command).returncode
         if (return_code == SUCCESS):
             self.log.log_task(f"Request: {command.upper()} handled.\n")
-            sleep(1) # Let the command take effect
+            sleep(1) # Let the command register in the log
         else:
             self.log.log_error_report(f'Attempting to handle  "{command.upper()}"')
-
-#======================================================================================================
+#-------------------------------------------------------------------------------------------------------------------------
     def __stop_message(self, msg_id_: str, phone_: str) -> None:
         '''
         Stops a users message. If the user is not a part of a group, it will disable the
@@ -159,25 +142,22 @@ class Responder():
         '''
         msg_id_ = msg_id_.upper()
         user_name: str = self.__get_user(phone_)[NAME]
-        
+
         # see if this is a group message.
         destination: str| None = self.__get_message_type(msg_id_)
         
         if destination == 'group':
-            # open the contacts db, and edit the msg_id list for this contact.
             self.log.log_task(f'GROUP MEMBER: "{user_name}" of GROUP '
                               f'"{self.__get_message(msg_id_)[DESTINATION]}" Stopping message "{msg_id_}"')
+            # open the contacts db, and edit the msg_id list for this contact.
             self.__disable_user_message(user_name, msg_id_)
 
         elif destination == 'contact':
-            self.log.log_task(f'CONTACT: "{user_name}" stopping {msg_id_}')
-            
-            self.disable_task(msg_id_)
-            
+            self.log.log_task(f'CONTACT: "{user_name}" stopping {msg_id_}')            
+            self.disable_task(msg_id_)            
         else:
             self.log.log_task(f'{msg_id_} does not not exist. Aborting.') 
-
-#======================================================================================================
+#-------------------------------------------------------------------------------------------------------------------------
     def __disable_user_message(self, user_: str, msg_id_: str) -> None:
         '''
         stops a message for one meber in a group.
@@ -185,21 +165,17 @@ class Responder():
         msg_id_ = msg_id_.upper()
         user_ = user_.title()
         # Look up this user and remove the message ID if its there.
-        # it may hav been removed previuosly
+        # it may have been removed previuosly
         contacts: list[list[str]] = self.db.load_data(CONTACTS_DB)
         for contact in contacts:
             if contact[NAME] == user_:
-                # see if the message is there.
                 if msg_id_ in contact[MSG_LIST]:
-                     # remove it
                      contact[MSG_LIST].remove(msg_id_)
                      self.db.write_data(contacts, CONTACTS_DB)
                      self.log.log_task(f'MESSAGE ID: {msg_id_} was removed from "{user_}".')
                 else:
                     self.log.log_task(f'MESSAGE ID: {msg_id_} was not found. Perhaps it is already disabled.')
-        
-
-#======================================================================================================
+#-------------------------------------------------------------------------------------------------------------------------
     def __num_commands(self, data_: dict[str,str]) -> int:
         '''
         returns the count on the commands sent by the user.
@@ -209,8 +185,7 @@ class Responder():
             if command is not None:
                 cnt+=1
         return (cnt - 1) # DOnt record the phoe number as a command
-
-#======================================================================================================
+#-------------------------------------------------------------------------------------------------------------------------
     def __get_message_type(self, msg_id_: str) -> str:
         '''
         returns 'group' if its a group 'contact' if contact
@@ -229,7 +204,7 @@ class Responder():
                 return 'contact' 
         else:
             return 
-#======================================================================================================
+#-------------------------------------------------------------------------------------------------------------------------
     def __get_message(self, msg_id_: str) -> str | None:
         '''
         returns a message by the ID or None
@@ -243,8 +218,7 @@ class Responder():
 
         except Exception as er:
             self.log.log_error_report(str(er))
-
-#======================================================================================================
+#-------------------------------------------------------------------------------------------------------------------------
     def __get_user(self, phone_num_: str=None, name_: str=None) -> str:
         '''
         gets the info of the user associated with this number, or name
@@ -263,26 +237,23 @@ class Responder():
 
         except Exception as er:
             self.log.log_error_report(str(er))  
-
-#======================================================================================================
+#-------------------------------------------------------------------------------------------------------------------------
     def __get_commands(self, data_: dict[str,str]) -> tuple[str, str]:
         '''
-        returns a list of the commands sent by a user.
+        parses the dict and returns a list of the commands sent by a user.
+        eyrns the phone number to ID the user with all commands. 
         '''
         # extract the phone number
         phone: str = data_['phone']
-
         return [
             (target, command, phone) 
             for target, command in data_.items() 
             if command is not None and target != 'phone'
         ]   
-
-#======================================================================================================
+#-------------------------------------------------------------------------------------------------------------------------
     def __change_message_status(self, msg_id_: str, _status: str) -> None:
         """
         Changes the status of a message used by disable
-        Same function used in Tizzle
         """        
         msg_id_ = msg_id_.upper()
         try:

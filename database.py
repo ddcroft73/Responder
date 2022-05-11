@@ -14,7 +14,6 @@ class Database:
     def __init__(self, log) -> None:
         self.log = log
         
-#=======================
     def load_data(self, fname_: str):
         ''' get the settings form the settings json file'''
         try:
@@ -27,7 +26,6 @@ class Database:
             exit()
         return data        
 
-#=======================
     def write_data(self, _data_: list, database_: str) -> None:
         """Writes changes made to the messages database.] """
         try:
@@ -36,4 +34,4 @@ class Database:
         except FileNotFoundError:
             self.log.log_error_report(f'{database_} not found.', report=f'{database_} not found.')
             exit()
-    pass
+    

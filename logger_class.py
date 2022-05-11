@@ -29,16 +29,15 @@ class RespondLogger():
             print(message)   
             
     def log_error_report(self, error: str, report: str=None):
-        '''Logs the error and reports with a message to alert user.'''
-        
+        '''
+           Logs the error and reports with a message to alert user.
+           Will also pop up  message box to alert the user of any doom that
+           needs to be surveyed
+        '''        
         error = "ERROR: " + error 
         self.log_task(error)       
-        #alert the user so if they are at the computer will see.
         if report: 
             showinfo('ERROR:', {report})
 
     def get_time(self) -> str:
-        '''
-        returns the time
-        '''       
         return datetime.now().strftime("%m/%d/%Y %H:%M:%S").split()[1]
