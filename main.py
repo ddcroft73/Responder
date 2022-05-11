@@ -15,14 +15,14 @@ from constants import(
 from os import getpid
 
 def main(args=None) -> None:
-    hunting:          bool = True
-    responder:   Responder = Responder(SET_FILE, getpid())  # so Tizzle can shut it down.
+    hunting:        bool = True
+    responder: Responder = Responder(SET_FILE, getpid())  # so Tizzle can shut it down.
     
     try:
         while(hunting):            
            responder.log.log_task('Checking email...')
            loggedin: bool = responder.email.login()
-           
+
            if loggedin:
               email_message: str = responder.email.get_email_delete_email() 
 

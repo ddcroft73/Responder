@@ -22,7 +22,7 @@ class Responder():
         self.db:        Database = Database(self.log)
         self.settings            = self.db.load_data(settings_location)      
         self.email: EmailHandler = EmailHandler( self.settings['imap_credentials'][0], self.settings['imap_credentials'][1], 
-                                   self.settings['contact'], self.settings['imap_server'], self.log)   
+                                   self.settings['admin_contact'], self.settings['imap_server'], self.log)   
         self.pid: int = pid
         self.log.log_task(f'Responder Started. PID: {self.pid}')
         self.start_time: str = self.log.get_time()
@@ -97,6 +97,7 @@ class Responder():
         self.log.log_task(f"Command: {command.upper()} issued.")
         match command:
             case 'status':
+                # Stuts should only be avaialble to the 
                 self.commands_this_run.append(command + f' @ {self.log.get_time()}\n')
                 msg = f'\nStatus Report:\nResponder is Running\nStart time: {self.start_time}\nCommands since start:'f' \n{"".join(self.commands_this_run)}'
                 sub_command = 'send'
