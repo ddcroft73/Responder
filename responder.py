@@ -4,7 +4,7 @@ from sys import executable
 from time import sleep
 from email_class import EmailHandler
 from logger_class import RespondLogger
-from database import Database
+from fileacces import FileAccess
 from re import findall
 from constants import *
 
@@ -19,7 +19,7 @@ class Responder():
     def __init__(self, settings_location: str,  pid: int):
         
         self.log:  RespondLogger = RespondLogger(LOG_FILE)
-        self.db:        Database = Database(self.log)
+        self.db:        FileAccess = FileAccess(self.log)
         self.settings            = self.db.load_data(settings_location)      
         self.email: EmailHandler = EmailHandler( self.settings['imap_credentials'][0], self.settings['imap_credentials'][1], 
                                    self.settings['admin_contact'], self.settings['imap_server'], self.log)   
@@ -78,59 +78,109 @@ class Responder():
     def handle_instructions(self, data_: dict[str,str], msg_: str=None) -> None:
         '''
         handles any request issued from a client.
-        '''                 
+        '''            
         self.log.log_task(f"Received {self.__num_commands(data_)} commands from '{self.__get_user(data_['phone'])[NAME]}'")
-        user_commands: tuple[str, str] = self.__get_commands(data_)   
+        user_commands: tuple[str, str, str] = self.__get_commands(data_)   
         
         for command in user_commands:
-            print(command)
-            self.__exec_command(command[0], command[1], command[2])
+            self.__distibute_commands(command[0], command[1], command[2])
 
         return        
 #-------------------------------------------------------------------------------------------------------------------------
-    def __exec_command(self, command:str, payload: str, user_phone: str) -> None:        
+    def __distibute_commands(self, command:str, payload: str, user_phone: str) -> None:        
         '''
         executes a users command.
         ''' 
         msg: str
         arg: str
-        sub_command: str = "" 
+        sub_command:   str  
+        this_user:     str = self.__get_user(phone_num_=user_phone)[NAME]
+        admin_contact: str = self.settings['admin_contact']
+
         self.log.log_task(f"Command: {command.upper()} issued.")
         match command:
             case 'status':
-                # Stuts should only be avaialble to the 
                 self.commands_this_run.append(command + f' @ {self.log.get_time()}\n')
-                msg = f'\nStatus Report:\nResponder is Running\nStart time: {self.start_time}\nCommands since start:'f' \n{"".join(self.commands_this_run)}'
+                msg = ('\n'
+                    f'Status Report:\n'
+                    f'Responder is running\n'
+                    f'Started at: {self.start_time}\n'
+                    f'Admin Contact: {admin_contact}\n'
+                    f'Commands since start:\n'
+                    f'{"".join(self.commands_this_run)}\n'
+                )
                 sub_command = 'send'
-                arg = self.settings['contact']
+                arg = admin_contact
+
+                # Status should only be avaialble to the admin contact.
+                if this_user != admin_contact:
+                    # notify this user they cannot query for status.
+                    msg = ('Status reports are only available to the administrator. ')
+                    self.log.log_task(f'USER: {this_user} queried responder for a status report.')
+                    arg = this_user
 
             case 'shutdown':
-                self.log.log_task(f"Shutting down.")
-                msg = ''
-                sub_command = 'responder'
-                arg = '--stop'
-                self.commands_this_run.append(command + '\n')
+                # shutdown should only be avaialble to the admin contact.
+                command, msg, sub_command, arg = self.__shutdown_responder(admin_contact, this_user)               
                 
             case 'stop':
-                # handle the stop message command
                 self.__stop_message(payload, user_phone)
-                self.commands_this_run.append(f'stop {payload} From User: "{self.__get_user(user_phone)[NAME]}". '
+                self.commands_this_run.append(f'stop {payload} From User: "{this_user}". '
                                               f'Received @ {self.log.get_time()} \n')
-                return # Dont fall through work here is done.
+                return # work here is done.
+                
             case _:
                 self.log.log_task(f"Unknown request: {command}")
+                self.commands_this_run.append(f'Unknown command {command} From User: "{this_user}". '
+                                              f'Received @ {self.log.get_time()} \n')
                 return
 
-        tizz_command: list[str] = [executable, TIZZLE, sub_command, arg, msg ]  
-        if command == 'shutdown':
+
+        self.__execute_command(command, sub_command, arg, msg)       
+
+#-------------------------------------------------------------------------------------------------------------------------
+    def __execute_command(self, command_: str, sub_: str, arg_: str, msg_: str) -> None:
+        '''
+        carries out a user command.
+        '''
+        tizz_command: list[str] = [executable, TIZZLE, sub_, arg_, msg_ ]  
+        
+        if command_ == 'shutdown':
             tizz_command = tizz_command[:-1]
 
         return_code: int = run(tizz_command).returncode
         if (return_code == SUCCESS):
-            self.log.log_task(f"Request: {command.upper()} handled.\n")
+            self.log.log_task(f"Request: {command_.upper()} handled.\n")
             sleep(1) # Let the command register in the log
         else:
-            self.log.log_error_report(f'Attempting to handle  "{command.upper()}"')
+            self.log.log_error_report(f'Attempting to handle  "{command_.upper()}"')
+#-------------------------------------------------------------------------------------------------------------------------
+    def __shutdown_responder(self, admin_contact_: str, this_usr_: str) -> tuple[str,str,str,str]:
+        '''
+        handles the shutdown sequence.
+        '''
+        if this_usr_ != admin_contact_:
+            # notify this user they cannot query for status.
+            command = "INVALID USER"
+            sub_command = 'send'
+            msg = ('Shutdown command is only available to the administrator. ')
+            self.log.log_task(f'USER: {this_usr_} tried to shudown Responder.')
+            arg = this_usr_
+        else:    
+            command = 'goodbye messsage'
+            msg = f'Responder shutdown. Good-Bye.'
+            sub_command = 'send'
+            arg = admin_contact_
+            self.__execute_command(command, sub_command, arg, msg)
+
+            sleep(2)
+            self.log.log_task(f"Shutting down.")
+            command = 'shutdown'
+            msg = ''
+            sub_command = 'responder'
+            arg = '--stop'
+
+        return command, msg , sub_command, arg
 #-------------------------------------------------------------------------------------------------------------------------
     def __stop_message(self, msg_id_: str, phone_: str) -> None:
         '''
@@ -151,6 +201,13 @@ class Responder():
             self.log.log_task(f'CONTACT: "{user_name}" stopping {msg_id_}')            
             self.disable_task(msg_id_)            
         else:
+            # notify the sender, 
+            command = 'File Not Found'
+            msg = f"{msg_id_} does not not exist. Perhaps you've previously disabled it or mistyped the ID."
+            sub_command = 'send'
+            arg = user_name
+            self.__execute_command(command, sub_command, arg, msg)
+
             self.log.log_task(f'{msg_id_} does not not exist. Aborting.') 
 #-------------------------------------------------------------------------------------------------------------------------
     def __disable_user_message(self, user_: str, msg_id_: str) -> None:
