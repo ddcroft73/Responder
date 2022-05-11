@@ -37,7 +37,7 @@ class Responder():
         # log the task
         self.log.log_task(f'Disabling: {task_name_}')  
         
-        return_code = 0 # int = run(command).returncode  
+        return_code: int = run(command).returncode  
         if (return_code == SUCCESS):
             self.log.log_task(f'Disabled: {task_name_}')
             self.__change_message_status(task_name_, 'Disabled.')
@@ -49,23 +49,19 @@ class Responder():
         searches an email message for a dict of regex targets, returns any found
         to a similar dict else None for nothing
         '''
-        # need to figue out the best way to gather this data.
-        #create a dict and search the message for each one from a list if not found return None
         targets: dict[str,str] = {
             'status'  : r'status',
             'stop'    : r'(stop m\d*)',
             'shutdown': r'shutdown',
             'phone'   : r'(from: <\d*)'
         }
-        dict_results: dict[str,str] = {}
-        command_list: list = []
+        dict_results: dict[str,str, str] = {}
 
         for target, pattern in targets.items():
             results: list[str] = findall(pattern, raw_email_)  
                  
             if results:
-                #will only work on the last item, but there should only ever be one of each command
-                # issued at a time.
+                #there should only ever be one of each command issued at a time.
                 for item in results:
                     # clean up the quarry. 
                     if target == 'stop':  
@@ -118,8 +114,7 @@ class Responder():
                 self.__stop_message(payload, user_phone)
                 self.commands_this_run.append(f'stop {payload} From User: "{self.__get_user(user_phone)[NAME]}". '
                                               f'Received @ {self.log.get_time()} \n')
-                return # Dont fall throuhg, command needs proprietary work
-
+                return # Dont fall through work here is done.
             case _:
                 self.log.log_task(f"Unknown request: {command}")
                 return
@@ -142,10 +137,8 @@ class Responder():
         '''
         msg_id_ = msg_id_.upper()
         user_name: str = self.__get_user(phone_)[NAME]
-
-        # see if this is a group message.
-        destination: str| None = self.__get_message_type(msg_id_)
         
+        destination: str| None = self.__get_message_type(msg_id_)        
         if destination == 'group':
             self.log.log_task(f'GROUP MEMBER: "{user_name}" of GROUP '
                               f'"{self.__get_message(msg_id_)[DESTINATION]}" Stopping message "{msg_id_}"')

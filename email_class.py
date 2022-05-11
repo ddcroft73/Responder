@@ -1,18 +1,12 @@
-#email.py
-
-#from logger import Logger
-
+#email_class.py
 import imaplib
 import email
-
-from logger_class import RespondLogger
-
 
 class EmailHandler():
     ''' Handles all actions asociated with email'''    
     imap = None 
 
-    def __init__(self,  user: str,  pword: str,  contact: str, imap_server: str,  logger: RespondLogger):
+    def __init__(self,  user: str,  pword: str,  contact: str, imap_server: str,  logger):
         self.user = user
         self.pword = pword
         self.contact = contact
@@ -56,7 +50,7 @@ class EmailHandler():
         except:
            # no emails keep shlooking 
            pass 
-        
+
         return raw_msg 
  
     def logout(self):

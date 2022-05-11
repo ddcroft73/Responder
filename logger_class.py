@@ -8,7 +8,6 @@ class RespondLogger():
     Handles all actiions related to any logging program Status reports and errors.
     '''
     log_time: datetime    
-    errors: list[str] = []
 
     def __init__(self, log_file: str, debug=False):
         self.log_file = log_file

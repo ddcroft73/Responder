@@ -15,7 +15,7 @@ class Database:
         self.log = log
         
     def load_data(self, fname_: str):
-        ''' get the settings form the settings json file'''
+        ''' loads data from one of 3 files'''
         try:
             with open(fname_, "r") as file:
                 data: list = json_load(file)
