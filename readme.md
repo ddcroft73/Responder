@@ -27,6 +27,3 @@ Threading:<br>
 `Fatal Python error: _enter_buffered_busy: could not acquire lock for <_io.BufferedWriter name='<stdout>'> at interpreter shutdown, possibly due to daemon threads Python runtime state: finalizing (tstate=0x000001af141b2e30)`
 
 I cannot get it to launch more than once per session without it causing an error. I can only get it to return the terminal with `daemon=True`, but it would seem that once that thread is destroyed you can't reuse it. I have tried `concurrent.futures.ThreadPoolExecutor()` with similar results. I only need to use two threads. The one Tizzle is in and one for the Responder. The problem arises when I terminate Responder. It's like I can't get an additional thread and it seems odd to have to use a bunch of threads, that only are ever destroyed when you close the terminal. It may just be best to launch in its own terminal. I'm sure this is a rather common problem, and as soon as learn about multi-threading, or threading in general I'll address this issue.
-
-<br><br>
-Any help is greatly appreciated.
