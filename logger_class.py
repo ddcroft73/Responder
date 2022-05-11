@@ -3,11 +3,12 @@
 from datetime import datetime
 from tkinter.messagebox import showinfo
 
-class EasyLogger():
+class RespondLogger():
     ''' 
     Handles all actiions related to any logging program Status reports and errors.
     '''
-    log_time: datetime
+    log_time: datetime    
+    errors: list[str] = []
 
     def __init__(self, log_file: str, debug=False):
         self.log_file = log_file
@@ -24,19 +25,20 @@ class EasyLogger():
             except Exception as er:
                 print(er)  
         else:
-            # Dont write to file            
-            print(message)                     
-
+            # print to screen            
+            print(message)   
             
     def log_error_report(self, error: str, report: str=None):
         '''Logs the error and reports with a message to alert user.'''
-
+        
         error = "ERROR: " + error 
         self.log_task(error)       
         #alert the user so if they are at the computer will see.
-        try:
-            if report: 
-                showinfo('Error...', {report})
-        except Exception as er:
-            self.log_task('tkinter is not working because.../n'+er)        
-   
+        if report: 
+            showinfo('ERROR:', {report})
+
+    def get_time(self) -> str:
+        '''
+        returns the time
+        '''       
+        return datetime.now().strftime("%m/%d/%Y %H:%M:%S").split()[1]

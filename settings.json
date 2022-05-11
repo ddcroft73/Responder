@@ -1,6 +1,6 @@
 {
-    "imap_credentials": ["sameAccountAsTizzleEmail@gmail.com","apppassword"],
+    "imap_credentials": ["843.926.0677.Danny.Croft@gmail.com","bfowtcpnepkdtugz"],
     "imap_server": "imap.gmail.com",
     "smtp_port": 465,
-    "contact": "Contact to send alerts and status reports"
+    "contact": "Danny Croft"
 }

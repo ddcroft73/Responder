@@ -37,45 +37,30 @@ from os import getpid
 
 def main(args=None) -> None:
     hunting:          bool = True
-    responder:   Responder = Responder(SET_FILE)    
-    instruction: list[str]
-    pid:               int = getpid()
+    responder:   Responder = Responder(SET_FILE, getpid())  
     
-    responder.log.log_task(f'Responder Started. PID: {pid}')
-
     try:
         while(hunting):            
            responder.log.log_task('Checking email...')
            loggedin: bool = responder.email.login()
 
            if loggedin:
-              instruction = responder.email.get_instructions_delete_email()  
-
-              if instruction:
-                  if'stop' in instruction:     
-                       responder.log.log_task(f'Disable instruction found: {instruction}')
-                       responder.disable_task(instruction)
-                       responder.email.logout()  
-                  else:
-                       responder.handle_instructions(instruction)  
-              else:
-                  # No instruction
-                  # Logout and wait...
-                  responder.email.logout()
+              email_message: str = responder.email.get_email_delete_email() 
+              
+              if email_message:
+                 email_data: dict[str, str] = responder.parse_email(email_message)
+                 responder.handle_instructions(email_data)                          
            else: 
-               # Login error check to see whats wrong.
+               # Login error show POP UP so user checks to see whats wrong.
                 responder.log.log_error_report(
                     f'Failure to log in to email @ {responder.settings["imap_credentials"][0]}',
                     f'Could not login to {responder.settings["imap_credentials"][0]} Check your settngs. ',
-                    report=f'Error loggin in to: {responder.settings["imap_credentials"][0]}'
+                    report=f'Error logging in to: {responder.settings["imap_credentials"][0]}'
                     )  
                 hunting = False
-                raise Exception('Error logging into email account.')
 
-           # Wait..     
            responder.log.log_task('No email, waiting...')
            sleep(WAIT_TIME)    
-
 
     except Exception as er:
         # log the error
@@ -93,4 +78,3 @@ def main(args=None) -> None:
     
 if __name__ == "__main__":     
     main()
-    
