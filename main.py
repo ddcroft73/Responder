@@ -24,11 +24,12 @@ def main(args=None) -> None:
            loggedin: bool = responder.email.login()
 
            if loggedin:
-              email_message: str = responder.email.get_email_delete_email() 
-
+              email_message: str = responder.email.get_email_delete_email()
               if email_message:
                  email_data: dict[str, str] = responder.parse_email(email_message)
-                 responder.handle_instructions(email_data)                          
+                 #                  
+                 if email_data is not None:
+                     responder.handle_instructions(email_data)                          
            else: 
                 raise Exception('Check login credintials in settings.json file.')
 
@@ -37,7 +38,7 @@ def main(args=None) -> None:
 
     except Exception as er:
         hunting = False        
-        responder.log.log_error_report(str(er), report=er)
+        responder.log.log_error_report('Logged in main \n' + str(er), report=er)
         exit()
 
     except KeyboardInterrupt:    
