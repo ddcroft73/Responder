@@ -2,24 +2,30 @@
 from subprocess import run
 from sys import executable
 from time import sleep
+from re import findall
 from email_class import EmailHandler
 from logger_class import RespondLogger
 from fileacces import FileAccess
-from re import findall
 from constants import *
+
+# commit changes
+# need to package __execute_command() into a separate method. 
+# Make Responder() a singleton so only one program can exist at a time
+# Make the phone regex stronger. Needs to be able to get the users phone no matter what.
+# log any emails that dont contain commands
 
 
 class Responder():
 
     ''' ties in all the classes and does the work '''
 
-    settings: dict = {}
-    commands_this_run:   list[str] = []
+    settings: dict[str|list,str] = {}
+    commands_this_run: list[str] = []
 
     def __init__(self, settings_location: str,  pid: int):
         
         self.log:  RespondLogger = RespondLogger(LOG_FILE)
-        self.db:        FileAccess = FileAccess(self.log)
+        self.db:      FileAccess = FileAccess(self.log)
         self.settings            = self.db.load_data(settings_location)      
         self.email: EmailHandler = EmailHandler( self.settings['imap_credentials'][0], self.settings['imap_credentials'][1], 
                                    self.settings['admin_contact'], self.settings['imap_server'], self.log)   
@@ -54,9 +60,11 @@ class Responder():
             'status'  : r'status',
             'stop'    : r'(stop m\d*)',
             'shutdown': r'shutdown',
-            'phone'   : r'(from: <\d*)'
+            'phone'   : r'([\s?<]\d{10}@)' 
         }
-        dict_results: dict[str,str, str] = {}
+        # need to pull out the text in an email to see what was sent if there was no target
+
+        dict_results: dict[str,str] = {}
 
         for target, pattern in targets.items():
             results: list[str] = findall(pattern, raw_email_)  
@@ -68,14 +76,20 @@ class Responder():
                     if target == 'stop':  
                         item = item.split()[1]
                     if target == 'phone': 
-                        item = item.split('<')[1]
+                        # get just the Numbers ie. ' 2222222222@
+                       item = item[1:-1]
                 dict_results[target] = item 
             else: 
                 dict_results[target] = None
 
+        # THe only one that cannot be None        
+        if dict_results['phone'] == None:
+            self.log.log_error_report(f"Phone number not found in email, check regex pattern. ")
+            return # Dont crash the app.
+
         return dict_results
 #-------------------------------------------------------------------------------------------------------------------------
-    def handle_instructions(self, data_: dict[str,str], msg_: str=None) -> None:
+    def handle_instructions(self, data_: dict[str,str]) -> None:
         '''
         handles any request issued from a client.
         '''            
@@ -84,23 +98,27 @@ class Responder():
         
         for command in user_commands:
             self.__distibute_commands(command[0], command[1], command[2])
-
         return        
 #-------------------------------------------------------------------------------------------------------------------------
     def __distibute_commands(self, command:str, payload: str, user_phone: str) -> None:        
         '''
         executes a users command.
         ''' 
+        
         msg: str
         arg: str
         sub_command:   str  
+        msg_id:        str = payload.upper()
         this_user:     str = self.__get_user(phone_num_=user_phone)[NAME]
         admin_contact: str = self.settings['admin_contact']
+        
 
         self.log.log_task(f"Command: {command.upper()} issued.")
+
+        # sets up a command and executes at exit.
         match command:
             case 'status':
-                self.commands_this_run.append(command + f' @ {self.log.get_time()}\n')
+                self.commands_this_run.append(f'[STATUS] @ {self.log.get_time()}.\n')
                 msg = ('\n'
                     f'Status Report:\n'
                     f'Responder is running\n'
@@ -108,6 +126,7 @@ class Responder():
                     f'Admin Contact: {admin_contact}\n'
                     f'Commands since start:\n'
                     f'{"".join(self.commands_this_run)}\n'
+                    f'{len(self.commands_this_run)} total queries since start.'
                 )
                 sub_command = 'send'
                 arg = admin_contact
@@ -124,24 +143,35 @@ class Responder():
                 command, msg, sub_command, arg = self.__shutdown_responder(admin_contact, this_user)               
                 
             case 'stop':
-                self.__stop_message(payload, user_phone)
-                self.commands_this_run.append(f'stop {payload} From User: "{this_user}". '
-                                              f'Received @ {self.log.get_time()} \n')
-                return # work here is done.
-                
+                # Is this message even for this user? Will stop someone from disabling a message for another
+                # by act of fat finger or luck.
+
+                self.__stop_message(msg_id, user_phone)
+                self.commands_this_run.append(f'[STOP {msg_id}]: a la "{this_user}". '                
+                                            f'Received @ {self.log.get_time()}.\n')                   
+                return
+
+            case 'restart':
+
+                '''command: list[str] = [os_join(PROG_DIR, 'responder.py')]
+                return_code: int = run(command).returncode
+                if (return_code == SUCCESS):
+                    self.log.log_task(f"Request: {command.upper()} handled.\n")'''
+                pass    
+
             case _:
                 self.log.log_task(f"Unknown request: {command}")
                 self.commands_this_run.append(f'Unknown command {command} From User: "{this_user}". '
-                                              f'Received @ {self.log.get_time()} \n')
+                                              f'Received @ {self.log.get_time()}.\n')
                 return
-
 
         self.__execute_command(command, sub_command, arg, msg)       
 
 #-------------------------------------------------------------------------------------------------------------------------
     def __execute_command(self, command_: str, sub_: str, arg_: str, msg_: str) -> None:
         '''
-        carries out a user command.
+        carries out a user command. This routine is both used to send texts via Tizzle
+        and to execute commands through Tizzle.
         '''
         tizz_command: list[str] = [executable, TIZZLE, sub_, arg_, msg_ ]  
         
@@ -155,25 +185,43 @@ class Responder():
         else:
             self.log.log_error_report(f'Attempting to handle  "{command_.upper()}"')
 #-------------------------------------------------------------------------------------------------------------------------
+    def __send_response(self, situation_: str, sub_command_: str, arg_: str, msg_: str) -> None:
+        ''' 
+         Sends a response back to the user via Tizzle.
+         Basically just an alternate interface for __execute_command used to send messages back to
+         the user that sent a command into the responder.
+         situation   - why its being sent.
+         sub_command - sub command to call tizz with.
+         arg_        - the argument for tizz.
+         msg_        - the message to be sent to the user.
+         
+        '''
+        self.__execute_command(situation_, sub_command_, arg_, msg_)
+
+#-------------------------------------------------------------------------------------------------------------------------
     def __shutdown_responder(self, admin_contact_: str, this_usr_: str) -> tuple[str,str,str,str]:
         '''
-        handles the shutdown sequence.
+        handles the shutdown sequence. alerts about the situation sets up the parameters to shutdown.
+
         '''
         if this_usr_ != admin_contact_:
             # notify this user they cannot query for status.
-            command = "INVALID USER"
-            sub_command = 'send'
-            msg = ('Shutdown command is only available to the administrator. ')
-            self.log.log_task(f'USER: {this_usr_} tried to shudown Responder.')
-            arg = this_usr_
+            self.__send_response(
+                "INVALID USER",
+                'send', 
+                this_usr_, 
+                ('Shutdown command is only available to the administrator. ')
+            )            
         else:    
-            command = 'goodbye messsage'
-            msg = f'Responder shutdown. Good-Bye.'
-            sub_command = 'send'
-            arg = admin_contact_
-            self.__execute_command(command, sub_command, arg, msg)
-
+            self.__send_response(
+                'goodbye messsage',
+                'send', 
+                admin_contact_, 
+                (f'Responder shutdown. Good-Bye.')
+            )
             sleep(2)
+
+            # Return these variables to be passed to _execute_command()
             self.log.log_task(f"Shutting down.")
             command = 'shutdown'
             msg = ''
@@ -190,26 +238,57 @@ class Responder():
         msg_id_ = msg_id_.upper()
         user_name: str = self.__get_user(phone_)[NAME]
         
-        destination: str| None = self.__get_message_type(msg_id_)        
-        if destination == 'group':
-            self.log.log_task(f'GROUP MEMBER: "{user_name}" of GROUP '
-                              f'"{self.__get_message(msg_id_)[DESTINATION]}" Stopping message "{msg_id_}"')
-            # open the contacts db, and edit the msg_id list for this contact.
-            self.__disable_user_message(user_name, msg_id_)
 
-        elif destination == 'contact':
-            self.log.log_task(f'CONTACT: "{user_name}" stopping {msg_id_}')            
-            self.disable_task(msg_id_)            
-        else:
-            # notify the sender, 
-            command = 'File Not Found'
-            msg = f"{msg_id_} does not not exist. Perhaps you've previously disabled it or mistyped the ID."
-            sub_command = 'send'
-            arg = user_name
-            self.__execute_command(command, sub_command, arg, msg)
+        destination: str | None = self.__get_message_type(msg_id_)     
 
+        if destination is not None:
+           # Is it associated with this member?
+            if self.__validate_user(user_name, msg_id_):
+                if destination == 'group':
+                    self.log.log_task(f'GROUP MEMBER: "{user_name}" of GROUP '
+                                    f'"{self.__get_message(msg_id_)[DESTINATION]}" Stopping message "{msg_id_}"')
+                    # open the contacts db, and edit the msg_id list for this contact.
+                    self.__disable_user_message(user_name, msg_id_)
+
+                elif destination == 'contact':
+                    self.log.log_task(f'CONTACT: "{user_name}" stopping "{msg_id_}"')            
+                    self.disable_task(msg_id_)   
+
+        elif destination is None:
+            # notify the sender not found, 
+            self.__send_response(
+                'File Not Found', 
+                'send', 
+                user_name, 
+                f"{msg_id_} does not not exist. Perhaps you've previously disabled it or mistyped the ID."
+            )            
             self.log.log_task(f'{msg_id_} does not not exist. Aborting.') 
+
 #-------------------------------------------------------------------------------------------------------------------------
+    def __validate_user(self, name_: str, msg_id_: str) -> bool:
+        '''
+        True if the message is for this user.
+        '''
+        # Check the DB and see if this user has this message
+        name_on_msg: list[str] = self.__get_message(msg_id_.upper())[2]   
+        # Also get all the group messages associated with this user
+        group_messages: list[str] = self.__get_user(name_=name_)[MSG_LIST]
+        
+        if ((name_ == name_on_msg) or (msg_id_ in group_messages)):
+            return True    
+        else:        
+
+            self.log.log_task(f'INVALID OR EXPIRED: "{name_}" is not associated with "{msg_id_}"') 
+            # notify the sender not found, 
+            self.__send_response(
+                'INVALID USER', 
+                'send', 
+                name_, 
+                f'"{msg_id_}" is not a message associated with "{name_}" or it is a group message that has expired.'
+            )    
+        return False    
+#-------------------------------------------------------------------------------------------------------------------------
+       
     def __disable_user_message(self, user_: str, msg_id_: str) -> None:
         '''
         stops a message for one meber in a group.
@@ -247,7 +326,7 @@ class Responder():
         # if its not a contact, it is a group
         message: str = self.__get_message(msg_id_.upper())
         if message is not None:
-            # If this is a name of a group, it will not be in the conacts DB
+            # If this is a name of a group, it will NOT be in the conacts DB
             user: str = self.__get_user(name_=message[DESTINATION])
 
             if user is None:
@@ -313,9 +392,7 @@ class Responder():
             for msg in messages:
                 if (msg[ID] == msg_id_):
                     msg[STATUS] = _status
-                    self.db.write_data(messages, DB)
+            self.db.write_data(messages, DB)
 
         except Exception as er:
             self.log.log_error_report(str(er))    
-
-

@@ -42,6 +42,6 @@ MSG_LIST:   int = 4
 
 DESTINATION:int = 2
 
-WAIT_TIME: int = 10 # debug Normal is 60*3 
+WAIT_TIME: int = 60*3 # debug Normal is 60*3 
 
 #print(f'{MAIN_DIR = }\n {TIZZLE = }\n {PROG_DIR = }\n {SET_FILE = }\n {LOG_FILE = }\n' )
