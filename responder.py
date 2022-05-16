@@ -51,41 +51,37 @@ class Responder():
         else:
             self.log.log_error_report(f'Attempting to disable: {task_name_}.')
 #-------------------------------------------------------------------------------------------------------------------------
-    def parse_email(self, raw_email_: str) -> dict[str, str]:
+    def parse_email(self, from_: str, message_: str, email_type: str) -> dict[str, str]:
         '''
         searches an email message for a dict of regex targets, returns any found
         to a similar dict else None for nothing
         '''
+        
+        #    'phone'   : r'([?<]\d{10}@)',         
+        #    'message' : r'(?s:.*?)'  #r'<td>(?s:.*?)</td>'
         targets: dict[str,str] = {
             'status'  : r'status',
             'stop'    : r'(stop m\d*)',
-            'shutdown': r'shutdown',
-            'phone'   : r'([\s?<]\d{10}@)' 
+            'shutdown': r'shutdown'
         }
-        # need to pull out the text in an email to see what was sent if there was no target
 
+        # need to pull out the text in an email to see what was sent if there was no target
         dict_results: dict[str,str] = {}
 
         for target, pattern in targets.items():
-            results: list[str] = findall(pattern, raw_email_)  
+            results: list[str] = findall(pattern, message_)  
                  
             if results:
                 #there should only ever be one of each command issued at a time.
                 for item in results:
-                    # clean up the quarry. 
                     if target == 'stop':  
                         item = item.split()[1]
-                    if target == 'phone': 
-                        # get just the Numbers ie. ' 2222222222@
-                       item = item[1:-1]
                 dict_results[target] = item 
             else: 
                 dict_results[target] = None
-
-        # THe only one that cannot be None        
-        if dict_results['phone'] == None:
-            self.log.log_error_report(f"Phone number not found in email, check regex pattern. ")
-            return # Dont crash the app.
+            
+            dict_results['phone'] = from_
+            #dict_results['message'] = message_
 
         return dict_results
 #-------------------------------------------------------------------------------------------------------------------------
@@ -96,6 +92,8 @@ class Responder():
         self.log.log_task(f"Received {self.__num_commands(data_)} commands from '{self.__get_user(data_['phone'])[NAME]}'")
         user_commands: tuple[str, str, str] = self.__get_commands(data_)   
         
+        # if there is more than one command, prioritze:
+        # Status, then stop, then shudown
         for command in user_commands:
             self.__distibute_commands(command[0], command[1], command[2])
         return        
@@ -152,7 +150,7 @@ class Responder():
                 return
 
             case 'restart':
-
+                # How to do this? 
                 '''command: list[str] = [os_join(PROG_DIR, 'responder.py')]
                 return_code: int = run(command).returncode
                 if (return_code == SUCCESS):

@@ -15,19 +15,23 @@ from constants import(
 from os import getpid
 
 def main(args=None) -> None:
-    hunting:        bool = True
-    responder: Responder = Responder(SET_FILE, getpid())  # so Tizzle can shut it down.
-    
+    hunting:             bool = True
+    responder:      Responder = Responder(SET_FILE, getpid())  # so Tizzle can shut it down.
+    email_from:    str | None = None
+    email_message: str | None = None
+    email_type:    str | None = None
     try:
         while(hunting):            
            responder.log.log_task('Checking email...')
            loggedin: bool = responder.email.login()
 
            if loggedin:
-              email_message: str = responder.email.get_email_delete_email()
+              email_from,  email_message, email_type = responder.email.get_email()
+              
               if email_message:
-                 email_data: dict[str, str] = responder.parse_email(email_message)
-                 #                  
+                 email_data: dict[str, str] = responder.parse_email(email_from, email_message, email_type)
+                 print(f'{email_data = }') 
+                 return                 
                  if email_data is not None:
                      responder.handle_instructions(email_data)                          
            else: 
