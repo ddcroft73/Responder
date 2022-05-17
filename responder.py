@@ -10,12 +10,6 @@ from logger_class import RespondLogger
 from fileacces import FileAccess
 from constants import *
 
-# commit changes
-# need to package __execute_command() into a separate method. 
-
-# make the application create the batch file if its not there. so there is always a batch to restart 
-# itself.
-
 
 class Responder():
 
@@ -38,37 +32,10 @@ class Responder():
 
 
 #-------------------------------------------------------------------------------------------------------------------------
-    def __eval_restart_batch_file(self) -> None:
-        '''
-        Checks to see if the restart batch is alive. If not create a new one so there is always
-        a way to restart the application remotely.
-        '''
-        if os_exists(os_join(PROG_DIR, RESTART_BAT)): 
-            return
-
-        self.__create_restart_batch_file()     
-
-#-------------------------------------------------------------------------------------------------------------------------
-    def disable_task(self, task_name_: str) -> None:
-        '''
-        Disable a task in the WTS. USed to stop a message for a single user that is not apart of a group.
-        '''        
-        command: str = ["schtasks.exe", "/CHANGE",  "/TN", task_name_, "/DISABLE"]
-        # log the task
-        self.log.log_task(f'Disabling: {task_name_}')  
-        
-        return_code: int = run(command).returncode  
-        if (return_code == SUCCESS):
-            self.log.log_task(f'Disabled: {task_name_}')
-            self.__change_message_status(task_name_, 'Disabled.')
-        else:
-            self.log.log_error_report(f'Attempting to disable: {task_name_}.')
-#-------------------------------------------------------------------------------------------------------------------------
-   
 
     def parse_email(self, message_: str, body_: str=None) -> dict[str, str]:
         '''
-        searches an email message for a dict of regex targets, returns any found
+        searches an email message with a dict of regex targets, returns any found
         to a similar dict else None for nothing
 
         Still working on a way to send messages back to the tizzle user from email.
@@ -79,9 +46,9 @@ class Responder():
             'status'  : r'status',
             'shutdown': r'shutdown',
             'restart' : r'restart',
-            'phone'   : r'((?<=\s<)\d{10}(?=@))'
-        }
-        
+            'phone'   : r'((?<=\s<)\d{10}(?=@))' # only tested on 3 differnt email formats will get the # if preceeded by " " or "<"
+        }                                        # Sadly have not tested with other email "Texts" sent from many providers phones.
+                                                 # Cricket, AT&T, Verizon all work.
         command_cnt: int = 0
         dict_results: dict[str,str] = {}
 
@@ -94,7 +61,7 @@ class Responder():
             else:                 
                 dict_results[target] = None
         
-        # If command_cnt < 2, ie phone number and a command then it was just some other message. Trying to figure out if its 
+        # If command_cnt < 2, ie only phone number and a command then it was just some other message. Trying to figure out if its 
         # worth the time to make this 2 way commnication.      
         if command_cnt < 2:
             dict_results['message'] = body_
@@ -113,7 +80,7 @@ class Responder():
             self.__distibute_commands(command[0], command[1], command[2])
         return        
 #-------------------------------------------------------------------------------------------------------------------------
-    def __distibute_commands(self, command:str, payload: str, user_phone: str) -> None:        
+    def __distibute_commands(self, command_:str, payload_: str, user_phone_: str) -> None:        
         '''
         executes a users command, one at at time..
         ''' 
@@ -121,19 +88,19 @@ class Responder():
         msg: str
         arg: str
         sub_command:   str  
-        msg_id:        str = payload.upper()
-        this_user:     str = self.__get_user(phone_num_=user_phone)[NAME]
+        msg_id:        str = payload_.upper()
+        this_user:     str = self.__get_user(phone_num_=user_phone_)[NAME]
         admin_contact: str = self.settings['admin_contact']
         
 
-        self.log.log_task(f"Command: {command.upper()} issued.")
+        self.log.log_task(f"Command: {command_.upper()} issued.")
 
-        match command:
+        match command_:
             case 'stop':
                 # Is this message even for this user? Will stop someone from disabling a message for another
                 # in case they fatfinger the text.
 
-                self.__stop_message(msg_id, user_phone)
+                self.__stop_message(msg_id, user_phone_)
                 self.commands_this_run.append(f'[STOP {msg_id}]: a la "{this_user}". '                
                                             f'Received @ {self.log.get_time()}.\n')                   
                 return
@@ -161,29 +128,34 @@ class Responder():
 
             case 'shutdown':
                 # shutdown should only be avaialble to the admin contact.
-                command, msg, sub_command, arg = self.__shutdown_responder(admin_contact, this_user)                 
+                command_, msg, sub_command, arg = self.__shutdown_responder(admin_contact, this_user)                 
 
             case 'restart':
-                # Dont let anyone but the admin do this.
                 if this_user != admin_contact:
                     msg = ('Only the adminstrator can restart the application. ')
                     self.log.log_task(f'USER: {this_user} tried to restart the application.')
                     arg = this_user
-                else:   
-                    self.log.log_task(f'USER: "{this_user}" initiated a restart.')
+                else:  
+                    self.__send_response(
+                        'restart responder',
+                        'send', 
+                        this_user, 
+                        (f'Responder restarting...')
+                    )
+                    self.log.log_task(f'ADMIN: "{this_user}" initiated a restart.')
                     sleep(2) # let the log be notified.
                     startfile(os_join(PROG_DIR, RESTART_BAT))
                     return
                     
 
             case _:
-                self.log.log_task(f"Unknown request: {command}")
-                self.commands_this_run.append(f'Unknown command {command} From User: "{this_user}". '
+                self.log.log_task(f"Unknown request: {command_}")
+                self.commands_this_run.append(f'Unknown command {command_} From User: "{this_user}". '
                                               f'Received @ {self.log.get_time()}.\n')
                 return
 
         # only status and shutdown fall through to use this. rethink your logic and call it in another place.
-        self.__execute_command(command, sub_command, arg, msg)       
+        self.__execute_command(command_, sub_command, arg, msg)       
     
 #-------------------------------------------------------------------------------------------------------------------------
     def __execute_command(self, command_: str, sub_: str, arg_: str, msg_: str) -> None:
@@ -207,7 +179,8 @@ class Responder():
         ''' 
          Sends a response back to the user via Tizzle.
          Basically just an alternate interface for __execute_command used to send messages back to
-         the user that sent a command into the responder.
+         the user that sent a command into the responder. The details are then foratted to be displayed
+         in the log.
          situation   - why its being sent.
          sub_command - sub command to call tizz with.
          arg_        - the argument for tizz.
@@ -220,7 +193,6 @@ class Responder():
     def __shutdown_responder(self, admin_contact_: str, this_usr_: str) -> tuple[str,str,str,str]:
         '''
         handles the shutdown sequence. alerts about the situation sets up the parameters to shutdown.
-
         '''
         if this_usr_ != admin_contact_:
             self.__send_response(
@@ -269,10 +241,9 @@ class Responder():
 
                 elif destination == 'contact':
                     self.log.log_task(f'CONTACT: "{user_name}" stopping "{msg_id_}"')            
-                    self.disable_task(msg_id_)   
+                    self.__disable_task(msg_id_)   
 
         elif destination is None:
-            # notify the sender not found, 
             self.__send_response(
                 'File Not Found', 
                 'send', 
@@ -281,6 +252,20 @@ class Responder():
             )            
             self.log.log_task(f'{msg_id_} does not not exist. Aborting.') 
 
+#-------------------------------------------------------------------------------------------------------------------------
+    def __disable_task(self, task_name_: str) -> None:
+        '''
+        Disable a task in the WTS. USed to stop a message for a single user that is not apart of a group.
+        '''        
+        command: str = ["schtasks.exe", "/CHANGE",  "/TN", task_name_, "/DISABLE"]
+        self.log.log_task(f'Disabling: {task_name_}')  
+        
+        return_code: int = run(command).returncode  
+        if (return_code == SUCCESS):
+            self.log.log_task(f'Disabled: {task_name_}')
+            self.__change_message_status(task_name_, 'Disabled.')
+        else:
+            self.log.log_error_report(f'Attempting to disable: {task_name_}.')
 #-------------------------------------------------------------------------------------------------------------------------
     def __validate_user(self, name_: str, msg_id_: str) -> bool:
         '''
@@ -306,7 +291,7 @@ class Responder():
        
     def __disable_user_message(self, user_: str, msg_id_: str) -> None:
         '''
-        stops a message for one meber in a group.
+        stops a message for one member in a group.
         '''
         msg_id_ = msg_id_.upper()
         user_ = user_.title()
@@ -411,9 +396,9 @@ class Responder():
         except Exception as er:
             self.log.log_error_report(str(er))    
 #-------------------------------------------------------------------------------------------------------------------------------------------
-    def __wrap_quotes(self, _text: str) -> str:
+    def __wrap_quotes(self, text_: str) -> str:
         """wraps text in quotes"""    
-        return "\"" + _text + "\""            
+        return "\"" + text_ + "\""            
 #-------------------------------------------------------------------------------------------------------------------------
     def __create_restart_batch_file(self) -> None:
         '''
@@ -428,4 +413,15 @@ class Responder():
         with open(os_join(PROG_DIR, RESTART_BAT), 'w') as bat:
             for command in command_list:
                 bat.writelines(command + '\n')
+#-------------------------------------------------------------------------------------------------------------------------   
+    def __eval_restart_batch_file(self) -> None:
+        '''
+        Checks to see if the restart batch is alive. If not create a new one so there is always
+        a way to restart the application remotely.
+        '''
+        if os_exists(os_join(PROG_DIR, RESTART_BAT)): 
+            return
+
+        self.__create_restart_batch_file()     
+
         

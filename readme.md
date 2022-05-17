@@ -18,6 +18,7 @@ The application runs in its own window. You can send the following commands from
 
 Responder will generate a batch file when its started that is used to restart the application remotely. Be Sure to validate the paths to Tizzle in the constants.py file before you start the app. 
 
+Make sure you edit constants.py and tell it where Tizzle lives. I could have done this automatically and store the data in the settings file
 Run Responder:
 ```
 :\>python \path\to\responder\main.py

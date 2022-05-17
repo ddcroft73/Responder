@@ -5,7 +5,7 @@ from tkinter.messagebox import showinfo
 
 class RespondLogger():
     ''' 
-    Handles all actiions related to any logging program Status reports and errors.
+    Handles all actions related to any logging program Status reports and errors.
     ''' 
 
     def __init__(self, log_file: str, debug=False):
