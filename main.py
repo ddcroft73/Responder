@@ -7,7 +7,6 @@
 from time import sleep
 from sys import exit
 from responder import Responder
-
 from constants import(
      SET_FILE, 
      WAIT_TIME
@@ -17,21 +16,18 @@ from os import getpid
 def main(args=None) -> None:
     hunting:             bool = True
     responder:      Responder = Responder(SET_FILE, getpid())  # so Tizzle can shut it down.
-    email_from:    str | None = None
     email_message: str | None = None
-    email_type:    str | None = None
+    body:          str  |None = None
     try:
         while(hunting):            
            responder.log.log_task('Checking email...')
            loggedin: bool = responder.email.login()
 
            if loggedin:
-              email_from,  email_message, email_type = responder.email.get_email()
+              email_message, body = responder.email.get_email()
               
               if email_message:
-                 email_data: dict[str, str] = responder.parse_email(email_from, email_message, email_type)
-                 print(f'{email_data = }') 
-                 return                 
+                 email_data: dict[str, str] = responder.parse_email(email_message, body)
                  if email_data is not None:
                      responder.handle_instructions(email_data)                          
            else: 
