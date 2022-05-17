@@ -209,7 +209,8 @@ class Responder():
                 (f'Responder shutdown. Good-Bye.')
             )
             # give time to send the message and let the log log.
-            sleep(2)
+            # This may need to be 86'd altogether on really slow systems. Tested it on a 1ghz 4gb and had to be deleted
+            sleep(1)
 
             # Return these variables to be passed to _execute_command()
             self.log.log_task(f"Shutting down.")
